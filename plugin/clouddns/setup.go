@@ -132,8 +132,9 @@ func setup(c *caddy.Controller, f func(*gauth.Credentials)) error {
 	client := oauth2.NewClient(ctx, ts)
 
 	dnsClient, err := gdns.New(client)
+	s := AdaptService(dnsClient)
 
-	h, err := New(ctx, *dnsClient, project, keys, &up)
+	h, err := New(ctx, s, project, keys, &up)
 	if err != nil {
 		return c.Errf("failed to create CloudDNS plugin: %v", err)
 	}

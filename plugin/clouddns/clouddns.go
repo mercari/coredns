@@ -22,7 +22,8 @@ type CloudDNS struct {
 	Fall fall.F
 
 	zoneNames []string
-	client    gdns.Service
+	client    service
+	project   string
 	upstream  *upstream.Upstream
 
 	zMu   sync.RWMutex
@@ -45,15 +46,16 @@ type zones map[string][]*zone
 // exist, and returns a new *Route53. In addition to this, upstream is passed
 // for doing recursive queries against CNAMEs.
 // Returns error if it cannot verify any given domain name/zone id pair.
-func New(ctx context.Context, c gdns.Service, proj string, keys map[string][]string, up *upstream.Upstream) (*CloudDNS, error) {
+func New(ctx context.Context, c service, proj string, keys map[string][]string, up *upstream.Upstream) (*CloudDNS, error) {
 	log.Infof("Entering New function with %v project value", proj)
 	log.Infof("Current project is %v", proj)
 	zones := make(map[string][]*zone, len(keys))
 	zoneNames := make([]string, 0, len(keys))
+	mzsvc := AdaptManagedZonesService(c.Service.ManagedZones)
 	for _, managedZoneNames := range keys {
 		for _, managedZoneName := range managedZoneNames {
 			log.Infof("ManagedzoneName is %v", managedZoneName)
-			managedZone, err := c.ManagedZones.Get(proj, managedZoneName).Do()
+			managedZone, err := mzsvc.Get(proj, managedZoneName).Do()
 			if err != nil {
 				return nil, err
 			}
@@ -66,13 +68,13 @@ func New(ctx context.Context, c gdns.Service, proj string, keys map[string][]str
 	}
 
 	for i, j := range zones {
-		log.Infof("Zone index is", i)
-		log.Infof("Zone value is", j)
+		log.Infof("Zone index is %v", i)
+		log.Infof("Zone value is %v", j)
 		for k, l := range j {
-			log.Infof("Zone subindex is", k)
-			log.Infof("Zone dns is", l.dns)
-			log.Infof("Zone id is", l.id)
-			log.Infof("Zone file is", l.z.All())
+			log.Infof("Zone subindex is %v", k)
+			log.Infof("Zone dns is %v", l.dns)
+			log.Infof("Zone id is %v", l.id)
+			log.Infof("Zone file is %v", l.z.All())
 
 		}
 
@@ -86,6 +88,7 @@ func New(ctx context.Context, c gdns.Service, proj string, keys map[string][]str
 	log.Infof("Zones name length is %v", len(zoneNames))
 	return &CloudDNS{
 		client:    c,
+		project:   proj,
 		zoneNames: zoneNames,
 		zones:     zones,
 		upstream:  up,
@@ -178,13 +181,13 @@ func (h *CloudDNS) Run(ctx context.Context) error {
 			log.Infof("Entering Run function loop")
 			log.Info(h.zones)
 			for i, j := range h.zones {
-				log.Infof("Zone index is", i)
-				log.Infof("Zone value is", j)
+				log.Infof("Zone index is %v", i)
+				log.Infof("Zone value is %v", j)
 				for k, l := range j {
-					log.Infof("Zone subindex is", k)
-					log.Infof("Zone dns is", l.dns)
-					log.Infof("Zone id is", l.id)
-					log.Infof("Zone file is", l.z.All())
+					log.Infof("Zone subindex is %v", k)
+					log.Infof("Zone dns is %v", l.dns)
+					log.Infof("Zone id is %v", l.id)
+					log.Infof("Zone file is %v", l.z.All())
 
 				}
 
@@ -218,11 +221,11 @@ func (h *CloudDNS) updateZones(ctx context.Context) error {
 				errc <- err
 			}()
 
+			rrsvc := AdaptResourceRecordSetsService(h.client.ResourceRecordSets)
 			for i, managedZone := range z {
 				newZ := file.NewZone(managedZone.dns, "")
 				newZ.Upstream = *h.upstream
-				proj := "kouzoh-p-lainra"
-				err = h.client.ResourceRecordSets.List(proj, managedZone.id).Pages(ctx, func(rrs *gdns.ResourceRecordSetsListResponse) error {
+				err = rrsvc.List(h.project, managedZone.id).Pages(ctx, func(rrs *gdns.ResourceRecordSetsListResponse) error {
 					if err := updateZoneFromRRS(rrs, newZ); err != nil {
 						// Maybe unsupported record type. Log and carry on.
 						log.Warningf("Failed to process resource record set: %v", err)
