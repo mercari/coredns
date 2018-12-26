@@ -2,6 +2,7 @@ package clouddns
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"strings"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/coredns/coredns/plugin/pkg/upstream"
 
 	"github.com/mholt/caddy"
-	"golang.org/x/oauth2"
 	gauth "golang.org/x/oauth2/google"
 
 	gdns "google.golang.org/api/dns/v1"
@@ -24,14 +24,20 @@ func init() {
 	caddy.RegisterPlugin("clouddns", caddy.Plugin{
 		ServerType: "dns",
 		Action: func(c *caddy.Controller) error {
-			f := func(credential *gauth.Credentials) {
+			f := func(credential *gauth.Credentials) *CloudDNSClient {
+				ctx := context.Background()
+				client, err := NewCloudDNSClient(ctx, credential.TokenSource)
+				if err != nil {
+					fmt.Printf("Failed to create the CloudDNS client: %v", err)
+				}
+				return client
 			}
 			return setup(c, f)
 		},
 	})
 }
 
-func setup(c *caddy.Controller, f func(*gauth.Credentials)) error {
+func setup(c *caddy.Controller, f func(*gauth.Credentials) *CloudDNSClient) error {
 	keys := map[string][]string{}
 	var credsFilePath string
 	// Route53 plugin attempts to find AWS credentials by using ChainCredentials.
@@ -64,17 +70,6 @@ func setup(c *caddy.Controller, f func(*gauth.Credentials)) error {
 
 		for c.NextBlock() {
 			switch c.Val() {
-			// case "aws_access_key":
-			// 	v := c.RemainingArgs()
-			// 	if len(v) < 2 {
-			// 		return c.Errf("invalid access key '%v'", v)
-			// 	}
-			// 	providers = append(providers, &credentials.StaticProvider{
-			// 		Value: credentials.Value{
-			// 			AccessKeyID:     v[0],
-			// 			SecretAccessKey: v[1],
-			// 		},
-			// 	})
 			case "upstream":
 				args := c.RemainingArgs()
 				var err error
@@ -96,7 +91,7 @@ func setup(c *caddy.Controller, f func(*gauth.Credentials)) error {
 		}
 	}
 	ctx := context.Background()
-	var creds gauth.Credentials
+	var creds *gauth.Credentials
 	if credsFilePath != "" {
 		data, err := ioutil.ReadFile(credsFilePath)
 		if err != nil {
@@ -106,35 +101,27 @@ func setup(c *caddy.Controller, f func(*gauth.Credentials)) error {
 		if err != nil {
 			log.Fatalf("Unable to get credentials from the specified JSON file: %v", err)
 		}
-		creds = *cred
+		creds = cred
 	} else {
 		log.Infof("Not using `credentials` argument, looking for credentials")
 		cred, err := gauth.FindDefaultCredentials(ctx, gdns.CloudPlatformScope)
 		if err != nil {
 			log.Fatalf("Unable to acquire auth credentials: %v", err)
 		}
-		creds = *cred
-		log.Info(creds.ProjectID)
-		log.Info(creds.TokenSource)
+		creds = cred
 	}
 	if creds.ProjectID == "" {
 		log.Warning("Provided credentials don't have a GCP Project ID")
-		log.Warning(creds.ProjectID)
 	}
 	project := creds.ProjectID
 
 	if creds.TokenSource == nil {
 		log.Warning("Provided credentials don't have a Token Source")
-		log.Warning(creds.TokenSource)
 	}
-	ts := creds.TokenSource
-
-	client := oauth2.NewClient(ctx, ts)
-
-	dnsClient, err := gdns.New(client)
-	s := AdaptService(dnsClient)
-
-	h, err := New(ctx, s, project, keys, &up)
+	// ts := creds.TokenSource
+	r := f(creds)
+	// s, err := NewCloudDNSClient(ctx, ts)
+	h, err := New(ctx, r, project, keys, &up)
 	if err != nil {
 		return c.Errf("failed to create CloudDNS plugin: %v", err)
 	}
