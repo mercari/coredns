@@ -2,41 +2,117 @@ package clouddns
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
-
-	"golang.org/x/oauth2"
 
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
 	"github.com/coredns/coredns/plugin/pkg/fall"
 	"github.com/coredns/coredns/plugin/pkg/upstream"
 	"github.com/coredns/coredns/plugin/test"
 	request "github.com/coredns/coredns/request"
-	gauth "golang.org/x/oauth2/google"
 	gdns "google.golang.org/api/dns/v1"
+	"google.golang.org/api/googleapi"
 
 	"github.com/miekg/dns"
 )
 
+type mockManagedZonesGetCall struct {
+	project     string
+	managedZone string
+}
+
+type mockManagedZonesClient struct{}
+
+func (m *mockManagedZonesClient) Get(project string, managedZone string) managedZonesGetCallInterface {
+	return &mockManagedZonesGetCall{project: project, managedZone: managedZone}
+}
+
+func (m *mockManagedZonesGetCall) Do(opts ...googleapi.CallOption) (*gdns.ManagedZone, error) {
+	zone := &gdns.ManagedZone{
+		DnsName: "org.",
+		Name:    m.managedZone,
+	}
+	return zone, nil
+}
+
+type mockResourceRecordSetsListCall struct {
+	project     string
+	managedZone string
+}
+
+func (m *mockResourceRecordSetsListCall) Pages(ctx context.Context, f func(*gdns.ResourceRecordSetsListResponse) error) error {
+	if m.managedZone == "badzone" {
+		return errors.New("bad. zone is bad")
+	}
+	// resp := []*gdns.ResourceRecordSet{}
+	resp := map[string][]*gdns.ResourceRecordSet{}
+	for _, r := range []struct {
+		rType, name, value, managedZoneName string
+	}{
+		{"A", "example.org.", "1.2.3.4", "testzone"},
+		{"AAAA", "example.org.", "2001:db8:85a3::8a2e:370:7334", "testzone"},
+		{"CNAME", "sample.example.org.", "example.org", "testzone"},
+		{"PTR", "example.org.", "ptr.example.org.", "testzone"},
+		{"SOA", "org.", "ns-1536.awsdns-00.co.uk. awsdns-hostmaster.amazon.com. 1 7200 900 1209600 86400", "testzone"},
+		{"NS", "com.", "ns-1536.awsdns-00.co.uk.", "testzone"},
+		// Unsupported type should be ignored.
+		{"YOLO", "swag.", "foobar", "testzone"},
+		// hosted zone with the same name, but a different id
+		{"A", "other-example.org.", "3.5.7.9", "differentzone"},
+		{"SOA", "org.", "ns-15.awsdns-00.co.uk. awsdns-hostmaster.amazon.com. 1 7200 900 1209600 86400", "differentzone"},
+	} {
+		rrs, ok := resp[r.managedZoneName]
+		if !ok {
+			rrs = make([]*gdns.ResourceRecordSet, 0)
+		}
+		rrs = append(rrs, &gdns.ResourceRecordSet{Type: r.rType,
+			Name:    r.name,
+			Rrdatas: []string{r.value},
+			Ttl:     300,
+		})
+		resp[r.managedZoneName] = rrs
+		fmt.Printf("\n Length of resp is: %v", len(resp))
+		fmt.Printf("\n Length of rrs is: %v", len(rrs))
+	}
+	err := f(&gdns.ResourceRecordSetsListResponse{
+		Rrsets: resp[m.managedZone],
+	})
+	if err != nil {
+		return errors.New("paging function return false")
+	}
+	fmt.Print(resp)
+	return nil
+	// return f(&gdns.ResourceRecordSetsListResponse{Rrsets: resp})
+}
+
+type mockResourceRecordSetsClient struct{}
+
+func (m *mockResourceRecordSetsClient) List(project string, managedZone string) resourceRecordSetsListCallInterface {
+	return &mockResourceRecordSetsListCall{project: project, managedZone: managedZone}
+}
+
+func newCloudDNSClient() (*CloudDNSClient, error) {
+	gdc := &CloudDNSClient{
+		resourceRecordSetsClient: &mockResourceRecordSetsClient{},
+		managedZonesClient:       &mockManagedZonesClient{},
+	}
+	return gdc, nil
+}
+
 func TestCloudDNS(t *testing.T) {
 	ctx := context.Background()
-	ts, err := gauth.DefaultTokenSource(ctx, gdns.CloudPlatformScope)
-	client := oauth2.NewClient(ctx, ts)
-	c, err := gdns.New(client)
-	svc := AdaptService(c)
-	fmt.Printf("cmanagedzones is %v", c)
-	fmt.Printf("c is %v", c)
-	project := "kouzoh-p-lainra"
-	t.Log("Before the first new")
-	r, err := New(ctx, svc, project, map[string][]string{project: []string{"badzone"}}, &upstream.Upstream{})
+	s, err := newCloudDNSClient()
+	project := "testproject"
+	r, err := New(ctx, s, project, map[string][]string{project: []string{"badzone"}}, &upstream.Upstream{})
 	if err != nil {
 		t.Fatalf("Failed to create CloudDNS: %v", err)
 	}
 	if err = r.Run(ctx); err == nil {
 		t.Fatalf("Expected errors for zone name: badzone")
 	}
-	r, err = New(ctx, svc, project, map[string][]string{project: []string{"myzone"}}, &upstream.Upstream{})
+	r, err = New(ctx, s, project, map[string][]string{project: []string{"differentzone", "testzone"}}, &upstream.Upstream{})
 	if err != nil {
 		t.Fatalf("Failed to create CloudDNS: %v", err)
 	}
