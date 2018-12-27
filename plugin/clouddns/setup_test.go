@@ -1,6 +1,9 @@
 package clouddns
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/mholt/caddy"
@@ -15,7 +18,16 @@ func TestSetupCloudDNS(t *testing.T) {
 		}
 		return client
 	}
+	// Writing dummy JSON data in the temporary JSON file
+	testjsonfile, err := ioutil.TempFile(".", "testjsonfile")
+	jsonData := []byte(`{"type": "service_account"}`)
+	err = ioutil.WriteFile(testjsonfile.Name(), jsonData, 0644)
 
+	defer os.Remove(testjsonfile.Name())
+	if err != nil {
+		log.Fatal(err)
+	}
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", testjsonfile.Name())
 	c := caddy.NewTestController("dns", `clouddns`)
 	if err := setup(c, f); err != nil {
 		t.Fatalf("Expected no errors, but got: %v", err)
@@ -32,82 +44,62 @@ func TestSetupCloudDNS(t *testing.T) {
 	}
 
 	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
-    upstream 10.0.0.1
-}`)
+	    upstream 10.0.0.1
+	}`)
 	if err := setup(c, f); err != nil {
 		t.Fatalf("Expected no errors, but got: %v", err)
 	}
 
 	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
-    upstream
-}`)
+	    upstream
+	}`)
 	if err := setup(c, f); err != nil {
 		t.Fatalf("Expected no errors, but got: %v", err)
 	}
 
 	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
-    wat
-}`)
+	    wat
+	}`)
 	if err := setup(c, f); err == nil {
 		t.Fatalf("Expected errors, but got: %v", err)
 	}
 
-	// 	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
-	//     aws_access_key ACCESS_KEY_ID SEKRIT_ACCESS_KEY
-	//     upstream 1.2.3.4
-	// }`)
-	// 	if err := setup(c, f); err != nil {
-	// 		t.Fatalf("Unexpected errors: %v", err)
-	// 	}
-
 	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
-    fallthrough
-}`)
+	    fallthrough
+	}`)
+	if err := setup(c, f); err != nil {
+		t.Fatalf("Unexpected errors: %v", err)
+	}
+	os.Unsetenv("GOOGLE_APPLICATION_CREDENTIALS")
+	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
+			credentials
+	 		upstream 1.2.3.4
+		}`)
+	if err := setup(c, f); err == nil {
+		t.Fatalf("Expected errors, but got: %v", err)
+	}
+	credstring := `clouddns testproject:testzone {
+		credentials ` + testjsonfile.Name() +
+		`
+		upstream 1.2.3.4
+	}`
+	fmt.Printf(credstring)
+	c = caddy.NewTestController("dns", credstring)
 	if err := setup(c, f); err != nil {
 		t.Fatalf("Unexpected errors: %v", err)
 	}
 
 	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
-		credentials
- 		upstream 1.2.3.4
-	}`)
+			credentials credfilepath1 credentials extra-arg
+	 		upstream 1.2.3.4
+		}`)
 	if err := setup(c, f); err == nil {
 		t.Fatalf("Expected errors, but got: %v", err)
 	}
 
-	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
-		credentials default
- 		upstream 1.2.3.4
-	}`)
-	if err := setup(c, f); err != nil {
-		t.Fatalf("Unexpected errors: %v", err)
-	}
-
-	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
-		credentials default credentials
- 		upstream 1.2.3.4
-	}`)
-	if err := setup(c, f); err != nil {
-		t.Fatalf("Unexpected errors: %v", err)
-	}
-
-	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
-		credentials default credentials extra-arg
- 		upstream 1.2.3.4
-	}`)
-	if err := setup(c, f); err == nil {
-		t.Fatalf("Expected errors, but got: %v", err)
-	}
-
-	c = caddy.NewTestController("dns", `clouddns testproject:testzone testproject:testzone {
- 		upstream 1.2.3.4
-	}`)
-	if err := setup(c, f); err == nil {
-		t.Fatalf("Expected errors, but got: %v", err)
-	}
 	c = caddy.NewTestController("dns", `clouddns testproject {
- 		upstream 1.2.3.4
-	}`)
+	 		upstream 1.2.3.4
+		}`)
 	if err := setup(c, f); err == nil {
 		t.Fatalf("Expected errors, but got: %v", err)
 	}

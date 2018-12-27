@@ -93,21 +93,24 @@ type resourceRecordSetsListCallInterface interface {
 	Pages(ctx context.Context, f func(*gdns.ResourceRecordSetsListResponse) error) error
 }
 
-// New reads from the keys map which uses domain names as its key and hosted
+// New reads from the keys map which uses project name as its key and hosted
 // zone id lists as its values, validates that each domain name/zone id pair does
-// exist, and returns a new *Route53. In addition to this, upstream is passed
+// exist, and returns a new *CloudDNS. In addition to this, upstream is passed
 // for doing recursive queries against CNAMEs.
 // Returns error if it cannot verify any given domain name/zone id pair.
-func New(ctx context.Context, c *CloudDNSClient, proj string, keys map[string][]string, up *upstream.Upstream) (*CloudDNS, error) {
-	fmt.Printf("\n Entering New function with %v project value", proj)
-	fmt.Printf("\n Current project is %v", proj)
+func New(ctx context.Context, c *CloudDNSClient, keys map[string][]string, up *upstream.Upstream) (*CloudDNS, error) {
 	zones := make(map[string][]*zone, len(keys))
 	zoneNames := make([]string, 0, len(keys))
+	// Generates the project using the Corefile input, we do not support multiple projects, therefore all keys map keys should be the same string.
+	var proj string
+	for project := range keys {
+		proj = project
+	}
 	for _, managedZoneNames := range keys {
 		for _, managedZoneName := range managedZoneNames {
-			fmt.Printf("\nManagedzoneName is %v", managedZoneName)
 			managedZone, err := c.managedZonesClient.Get(proj, managedZoneName).Do()
 			if err != nil {
+				log.Errorf("Failed to get the managedZone: %v", err)
 				return nil, err
 			}
 			managedZoneDNS := managedZone.DnsName
@@ -119,25 +122,6 @@ func New(ctx context.Context, c *CloudDNSClient, proj string, keys map[string][]
 		}
 	}
 
-	// for i, j := range zones {
-	// 	fmt.Printf("\n Zone index is %v", i)
-	// 	fmt.Printf("\n Zone value is %v", j)
-	// 	for k, l := range j {
-	// 		fmt.Printf("\n Zone subindex is %v", k)
-	// 		fmt.Printf("\n Zone dns is %v", l.dns)
-	// 		fmt.Printf("\n Zone id is %v", l.id)
-	// 		fmt.Printf("\n Zone file is %v", l.z.All())
-
-	// 	}
-
-	// }
-	fmt.Printf("\n keys are %v", keys)
-	fmt.Printf("\n keys length is %v", len(keys))
-	fmt.Printf("\n Zones are %v", zones)
-	fmt.Printf("\n Zones length is %v", len(zones))
-
-	fmt.Printf("\n Zone names are %v", zoneNames)
-	fmt.Printf("\n Zones name length is %v", len(zoneNames))
 	return &CloudDNS{
 		client:    c,
 		project:   proj,
@@ -147,59 +131,18 @@ func New(ctx context.Context, c *CloudDNSClient, proj string, keys map[string][]
 	}, nil
 }
 
-//Matches test
-func (z Zones) Matches(qname string) string {
-	zone := ""
-	for _, zname := range z {
-		fmt.Printf("\n matches request received name %v", qname)
-		fmt.Printf("\n matches request comparing is %v", zname)
-		if dns.IsSubDomain(zname, qname) {
-			fmt.Printf("\n %v is actually a sub-part of %v", qname, zname)
-			// We want the *longest* matching zone, otherwise we may end up in a parent
-			if len(zname) > len(zone) {
-				zone = zname
-
-			}
-		}
-	}
-	fmt.Printf("\n Returned zone name is %v", zone)
-
-	return zone
-}
-
 // ServeDNS implements the plugin.Handler.ServeDNS.
 func (h *CloudDNS) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	state := request.Request{W: w, Req: r}
 	qname := state.Name()
-	fmt.Printf("\n request comparing is %v", qname)
-	for _, zo := range h.zoneNames {
-		fmt.Printf("\n zoneNames part is %v", zo)
-	}
-	// zonesDNS := make([]string, len(h.zones))
-	// for _, zones := range h.zones {
-	// 	for _, zone := range zones {
-	// 		zonesDNS = append(zonesDNS, zone.dns)
-	// 	}
-	// }
-	// fmt.Printf("\n Keys contents are %v", zonesDNS)
-	zName := Zones(h.zoneNames).Matches(qname)
-	fmt.Printf("\n request compare result = (%v)", zName)
+	zName := plugin.Zones(h.zoneNames).Matches(qname)
 
 	if zName == "" {
 		return plugin.NextOrFailure(h.Name(), h.Next, ctx, w, r)
 	}
-	// var matchedZone string
-	// for _, zones := range h.zones {
-	// 	for _, zone := range zones {
-	// 		if zone.dns == zName {
-	// 			matchedZone = zone.id
-	// 		}
-	// 	}
-	// }
-	// fmt.Printf("\n matchedZone value is: %v", matchedZone)
+
 	z, ok := h.zones[zName]
 	if !ok || z == nil {
-		fmt.Printf("\n Failed to find it ! (%v)", z)
 
 		return dns.RcodeServerFailure, nil
 	}
@@ -239,35 +182,14 @@ func (h *CloudDNS) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Ms
 // Run executes first update, spins up an update forever-loop.
 // Returns error if first update fails.
 func (h *CloudDNS) Run(ctx context.Context) error {
-	fmt.Printf("\n Entering Run function")
-	fmt.Print(h.zones)
 	if err := h.updateZones(ctx); err != nil {
 		return err
 	}
 	go func() {
 		for {
-			fmt.Printf("\n Entering Run function loop")
-			fmt.Print(h.zones)
-			for i, j := range h.zones {
-				fmt.Printf("\n Zone index is %v", i)
-				fmt.Printf("\n Zone value is %v", j)
-				for k, l := range j {
-					fmt.Printf("\n Zone subindex is %v", k)
-					fmt.Printf("\n Zone dns is %v", l.dns)
-					fmt.Printf("\n Zone id is %v", l.id)
-					fmt.Printf("\n Zone file is %v", l.z.All())
-
-				}
-
-			}
-			fmt.Printf("\n Zones are %v", h.zones)
-			fmt.Printf("\n Zones length is %v", len(h.zones))
-
-			fmt.Printf("\n Zone names are %v", h.zoneNames)
-			fmt.Printf("\n Zones name length is %v", len(h.zoneNames))
 			select {
 			case <-ctx.Done():
-				fmt.Printf("\n Breaking out of CloudDNS update loop: %v", ctx.Err())
+				log.Infof("\n Breaking out of CloudDNS update loop: %v", ctx.Err())
 				return
 			case <-time.After(1 * time.Minute):
 				if err := h.updateZones(ctx); err != nil && ctx.Err() == nil /* Don't log error if ctx expired. */ {

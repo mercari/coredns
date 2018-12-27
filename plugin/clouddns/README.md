@@ -9,8 +9,8 @@
 The clouddns plugin is useful for serving zones from resource record sets in Google Cloud DNS. This plugin
 supports all Google Cloud DNS records specified at <https://cloud.google.com/dns/docs/overview#supported_dns_record_types.>
 There is no restriction on where you deploy the clouddns plugin, you only need valid credentials to your GCP account.
-Please also understand that this plugin is made to work with one GCP account at a time. (Following the GCP way)
-CloudDNS API doesn't allow us to fetch an hosted zone by the domain FQDN, only by the zone name in CloudDNS or its ID.
+Please also understand that this plugin is made to work with one GCP account/project at a time.
+CloudDNS API doesn't allow us to fetch an hosted zone by the domain FQDN, only by the zone name in CloudDNS or its ID and requires the project name.
 
 ## Syntax
 
@@ -31,9 +31,9 @@ clouddns [GCP_PROJECT:GCP_ZONE_NAME/ID...] {
   against itself. **ADDRESS** can be an IP, an IP:port or a path to a file structured like
   resolv.conf.
 
-* `credentials`: Used to read the credential file and feeding CoreDNS with the proper service account to use to fetch hosted zone data.
+* `credentials`: Used to read the credential file and feeding CoreDNS with the proper service account to use to fetch hosted zone data. Please do not use this clause if you want the plugin to automatically find your credentials.
 
-* **FILENAME** GCP JSON service account credentials filename. Defaults to the value of `GOOGLE_AUTH_CREDENTIALS` environment variable.
+* **FILENAME** GCP JSON service account credentials filename. If 
 
 * `fallthrough`: If zone matches and no record can be generated, pass request to the next plugin.
   If **[ZONES...]** is omitted, then fallthrough happens for all zones for which the plugin
@@ -59,7 +59,7 @@ as long as your credentials are valid for each of them. Take one key:value per p
 
 ~~~ txt
 . {
-    clouddns myproject:myfirsthostedzonename myproject:myfirstreversehostedzonename myotherproject:mysecondhostedzonename
+    clouddns myproject:myfirsthostedzonename myproject:myfirstreversehostedzonename myproject:mysecondhostedzonename
 }
 ~~~
 

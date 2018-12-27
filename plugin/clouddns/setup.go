@@ -40,22 +40,13 @@ func init() {
 func setup(c *caddy.Controller, f func(*gauth.Credentials) *CloudDNSClient) error {
 	keys := map[string][]string{}
 	var credsFilePath string
-	// Route53 plugin attempts to find AWS credentials by using ChainCredentials.
-	// And the order of that provider chain is as follows:
-	// Static AWS keys -> Environment Variables -> Credentials file -> IAM role
-	// With that said, even though a user doesn't define any credentials in
-	// Corefile, we should still attempt to read the default credentials file,
-	// ~/.aws/credentials with the default profile.
-
-	// sharedProvider := &credentials.SharedCredentialsProvider{}
-	// var providers []credentials.Provider
 	var fall fall.F
 
 	up, _ := upstream.New(nil)
 	for c.Next() {
 		args := c.RemainingArgs()
 
-		for i := 0; i < len(args); i++ {
+		for i := range args {
 			parts := strings.SplitN(args[i], ":", 2)
 			if len(parts) != 2 {
 				return c.Errf("invalid zone '%s'", args[i])
@@ -83,6 +74,9 @@ func setup(c *caddy.Controller, f func(*gauth.Credentials) *CloudDNSClient) erro
 				} else {
 					return c.ArgErr()
 				}
+				if c.NextArg() {
+					return c.ArgErr()
+				}
 			case "fallthrough":
 				fall.SetZonesFromArgs(c.RemainingArgs())
 			default:
@@ -95,33 +89,32 @@ func setup(c *caddy.Controller, f func(*gauth.Credentials) *CloudDNSClient) erro
 	if credsFilePath != "" {
 		data, err := ioutil.ReadFile(credsFilePath)
 		if err != nil {
-			log.Fatalf("Failed to open the JSON file: %v", err)
+			return c.Errf("Failed to open the JSON file set in the credentials clause in Corefile: %v", err)
 		}
 		cred, err := gauth.CredentialsFromJSON(ctx, data, gdns.CloudPlatformScope)
 		if err != nil {
-			log.Fatalf("Unable to get credentials from the specified JSON file: %v", err)
+			return c.Errf("Unable to get credentials from the specified JSON file: %v", err)
 		}
 		creds = cred
 	} else {
 		log.Infof("Not using `credentials` argument, looking for credentials")
 		cred, err := gauth.FindDefaultCredentials(ctx, gdns.CloudPlatformScope)
 		if err != nil {
-			log.Fatalf("Unable to acquire auth credentials: %v", err)
+			return c.Errf("Unable to acquire auth credentials: %v", err)
 		}
 		creds = cred
 	}
-	if creds.ProjectID == "" {
-		log.Warning("Provided credentials don't have a GCP Project ID")
-	}
-	project := creds.ProjectID
 
-	if creds.TokenSource == nil {
-		log.Warning("Provided credentials don't have a Token Source")
+	if creds == nil {
+		fmt.Printf("Unable to find any credentials")
+	} else {
+		if creds.TokenSource == nil {
+			log.Warning("Provided credentials don't have a Token Source")
+		}
 	}
-	// ts := creds.TokenSource
-	r := f(creds)
-	// s, err := NewCloudDNSClient(ctx, ts)
-	h, err := New(ctx, r, project, keys, &up)
+	s := f(creds)
+
+	h, err := New(ctx, s, keys, &up)
 	if err != nil {
 		return c.Errf("failed to create CloudDNS plugin: %v", err)
 	}

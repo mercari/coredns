@@ -73,8 +73,8 @@ func (m *mockResourceRecordSetsListCall) Pages(ctx context.Context, f func(*gdns
 			Ttl:     300,
 		})
 		resp[r.managedZoneName] = rrs
-		fmt.Printf("\n Length of resp is: %v", len(resp))
-		fmt.Printf("\n Length of rrs is: %v", len(rrs))
+		// fmt.Printf("\n Length of resp is: %v", len(resp))
+		// fmt.Printf("\n Length of rrs is: %v", len(rrs))
 	}
 	err := f(&gdns.ResourceRecordSetsListResponse{
 		Rrsets: resp[m.managedZone],
@@ -105,14 +105,14 @@ func TestCloudDNS(t *testing.T) {
 	ctx := context.Background()
 	s, err := newCloudDNSClient()
 	project := "testproject"
-	r, err := New(ctx, s, project, map[string][]string{project: []string{"badzone"}}, &upstream.Upstream{})
+	r, err := New(ctx, s, map[string][]string{project: []string{"badzone"}}, &upstream.Upstream{})
 	if err != nil {
 		t.Fatalf("Failed to create CloudDNS: %v", err)
 	}
 	if err = r.Run(ctx); err == nil {
 		t.Fatalf("Expected errors for zone name: badzone")
 	}
-	r, err = New(ctx, s, project, map[string][]string{project: []string{"differentzone", "testzone"}}, &upstream.Upstream{})
+	r, err = New(ctx, s, map[string][]string{project: []string{"differentzone", "testzone"}}, &upstream.Upstream{})
 	if err != nil {
 		t.Fatalf("Failed to create CloudDNS: %v", err)
 	}
