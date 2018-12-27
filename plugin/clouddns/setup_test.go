@@ -1,7 +1,6 @@
 package clouddns
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -25,8 +24,9 @@ func TestSetupCloudDNS(t *testing.T) {
 
 	defer os.Remove(testjsonfile.Name())
 	if err != nil {
-		log.Fatal(err)
+		t.Fatal(err)
 	}
+	// Set the env var to allow tests not using credentials clause to behave correctly
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", testjsonfile.Name())
 	c := caddy.NewTestController("dns", `clouddns`)
 	if err := setup(c, f); err != nil {
@@ -70,6 +70,14 @@ func TestSetupCloudDNS(t *testing.T) {
 	if err := setup(c, f); err != nil {
 		t.Fatalf("Unexpected errors: %v", err)
 	}
+
+	c = caddy.NewTestController("dns", `clouddns testproject {
+		upstream 1.2.3.4
+   }`)
+	if err := setup(c, f); err == nil {
+		t.Fatalf("Expected errors, but got: %v", err)
+	}
+	// Unsetting the env just in case for the next tests using credentials clause
 	os.Unsetenv("GOOGLE_APPLICATION_CREDENTIALS")
 	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
 			credentials
@@ -78,12 +86,13 @@ func TestSetupCloudDNS(t *testing.T) {
 	if err := setup(c, f); err == nil {
 		t.Fatalf("Expected errors, but got: %v", err)
 	}
+	// Include the dynamically generated temporary file in the Corefile for the next test
 	credstring := `clouddns testproject:testzone {
 		credentials ` + testjsonfile.Name() +
 		`
 		upstream 1.2.3.4
 	}`
-	fmt.Printf(credstring)
+
 	c = caddy.NewTestController("dns", credstring)
 	if err := setup(c, f); err != nil {
 		t.Fatalf("Unexpected errors: %v", err)
@@ -91,13 +100,6 @@ func TestSetupCloudDNS(t *testing.T) {
 
 	c = caddy.NewTestController("dns", `clouddns testproject:testzone {
 			credentials credfilepath1 credentials extra-arg
-	 		upstream 1.2.3.4
-		}`)
-	if err := setup(c, f); err == nil {
-		t.Fatalf("Expected errors, but got: %v", err)
-	}
-
-	c = caddy.NewTestController("dns", `clouddns testproject {
 	 		upstream 1.2.3.4
 		}`)
 	if err := setup(c, f); err == nil {

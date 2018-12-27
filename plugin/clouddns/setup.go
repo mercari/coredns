@@ -41,12 +41,10 @@ func setup(c *caddy.Controller, f func(*gauth.Credentials) *CloudDNSClient) erro
 	keys := map[string][]string{}
 	var credsFilePath string
 	var fall fall.F
-
 	up, _ := upstream.New(nil)
 	for c.Next() {
 		args := c.RemainingArgs()
-
-		for i := range args {
+		for i, _ := range args {
 			parts := strings.SplitN(args[i], ":", 2)
 			if len(parts) != 2 {
 				return c.Errf("invalid zone '%s'", args[i])
@@ -104,7 +102,6 @@ func setup(c *caddy.Controller, f func(*gauth.Credentials) *CloudDNSClient) erro
 		}
 		creds = cred
 	}
-
 	if creds == nil {
 		fmt.Printf("Unable to find any credentials")
 	} else {
@@ -126,6 +123,5 @@ func setup(c *caddy.Controller, f func(*gauth.Credentials) *CloudDNSClient) erro
 		h.Next = next
 		return h
 	})
-
 	return nil
 }

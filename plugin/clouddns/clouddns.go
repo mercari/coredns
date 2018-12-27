@@ -205,6 +205,8 @@ func (h *CloudDNS) updateZones(ctx context.Context) error {
 	errc := make(chan error)
 	defer close(errc)
 	for zName, z := range h.zones {
+		zName := zName
+		z := z
 		go func(zName string, z []*zone) {
 			var err error
 			defer func() {
@@ -229,7 +231,6 @@ func (h *CloudDNS) updateZones(ctx context.Context) error {
 				(*z[i]).z = newZ
 				h.zMu.Unlock()
 			}
-
 		}(zName, z)
 	}
 	// Collect errors (if any). This will also sync on all zones updates

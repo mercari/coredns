@@ -3,7 +3,6 @@ package clouddns
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -73,8 +72,6 @@ func (m *mockResourceRecordSetsListCall) Pages(ctx context.Context, f func(*gdns
 			Ttl:     300,
 		})
 		resp[r.managedZoneName] = rrs
-		// fmt.Printf("\n Length of resp is: %v", len(resp))
-		// fmt.Printf("\n Length of rrs is: %v", len(rrs))
 	}
 	err := f(&gdns.ResourceRecordSetsListResponse{
 		Rrsets: resp[m.managedZone],
@@ -82,9 +79,7 @@ func (m *mockResourceRecordSetsListCall) Pages(ctx context.Context, f func(*gdns
 	if err != nil {
 		return errors.New("paging function return false")
 	}
-	fmt.Print(resp)
 	return nil
-	// return f(&gdns.ResourceRecordSetsListResponse{Rrsets: resp})
 }
 
 type mockResourceRecordSetsClient struct{}
