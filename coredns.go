@@ -7,8 +7,6 @@ import (
 
 	// Plug in CoreDNS
 	_ "github.com/coredns/coredns/core/plugin"
-
-	_ "github.com/lainra/coredns/plugin/clouddns"
 )
 
 func main() {
