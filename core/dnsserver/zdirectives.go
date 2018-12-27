@@ -45,5 +45,4 @@ var Directives = []string{
 	"erratic",
 	"whoami",
 	"on",
-	"clouddns",
 }
