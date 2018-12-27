@@ -24,8 +24,7 @@ func TestSetupCloudDNS(t *testing.T) {
 		t.Fatal(err)
 	}
 	jsonData := []byte(`{"type": "service_account"}`)
-	err = ioutil.WriteFile(testjsonfile.Name(), jsonData, 0644)
-	if err != nil {
+	if err := ioutil.WriteFile(testjsonfile.Name(), jsonData, 0644); err != nil {
 		t.Fatal(err)
 	}
 	// Set the env var to allow tests not using credentials clause to behave correctly
