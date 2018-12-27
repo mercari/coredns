@@ -28,8 +28,8 @@ clouddns [GCP_PROJECT:GCP_ZONE_NAME/ID...] {
   to external hosts (eg. used to resolve CNAMEs). If no **ADDRESS** is given, CoreDNS will resolve
   against itself. **ADDRESS** can be an IP, an IP:port or a path to a file structured like
   resolv.conf.
-* `credentials`: Used to read the credential file and feeding CoreDNS with the proper service account to use to fetch hosted zone data. Please do not use this clause if you want the plugin to automatically find your credentials.
-* **FILENAME** GCP JSON service account credentials filename. If 
+* `credentials`: Used to read the credential file and feeding CoreDNS with the proper service account to use to fetch hosted zone data. Please do not use this clause if you want the plugin to automatically find your credentials. When not using this, you can use the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to specify the location of your JSON file. The plugin will always use the filepath specified in the `credentials` clause before looking for a path through `GOOGLE_APPLICATION_CREDENTIALS`.
+* **FILENAME** GCP JSON service account credentials filename. If
 * `fallthrough`: If zone matches and no record can be generated, pass request to the next plugin.
   If **[ZONES...]** is omitted, then fallthrough happens for all zones for which the plugin
   is authoritative. If specific zones are listed (for example `in-addr.arpa` and `ip6.arpa`), then only

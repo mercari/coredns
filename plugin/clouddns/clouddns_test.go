@@ -99,6 +99,9 @@ func newCloudDNSClient() (*CloudDNSClient, error) {
 func TestCloudDNS(t *testing.T) {
 	ctx := context.Background()
 	s, err := newCloudDNSClient()
+	if err != nil {
+		t.Fatalf("Failed to create the fake CloudDNS client: %v", err)
+	}
 	project := "testproject"
 	r, err := New(ctx, s, map[string][]string{project: []string{"badzone"}}, &upstream.Upstream{})
 	if err != nil {
