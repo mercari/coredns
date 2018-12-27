@@ -98,6 +98,7 @@ type resourceRecordSetsListCallInterface interface {
 // exist, and returns a new *CloudDNS. In addition to this, upstream is passed
 // for doing recursive queries against CNAMEs.
 // Returns error if it cannot verify any given domain name/zone id pair.
+// Keys example: map[testproject:[differentzone testzone]]
 func New(ctx context.Context, c *CloudDNSClient, keys map[string][]string, up *upstream.Upstream) (*CloudDNS, error) {
 	zones := make(map[string][]*zone, len(keys))
 	zoneNames := make([]string, 0, len(keys))
