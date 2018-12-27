@@ -12,6 +12,7 @@ import (
 	"github.com/coredns/coredns/plugin/pkg/fall"
 	"github.com/coredns/coredns/plugin/pkg/upstream"
 	"github.com/coredns/coredns/request"
+
 	"github.com/miekg/dns"
 	"golang.org/x/oauth2"
 	gdns "google.golang.org/api/dns/v1"

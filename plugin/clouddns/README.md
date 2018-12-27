@@ -23,23 +23,17 @@ clouddns [GCP_PROJECT:GCP_ZONE_NAME/ID...] {
 ~~~
 
 * **GCP_PROJECT**: the project name owning the hosted zone that contains the resource record sets to be accessed.
-
 * **GCP_ZONE_NAME/ID**: the name OR id of the GCP hosted zone to be accessed. The hosted zone must be part of the project stated in the same key:value pair.
-
 * `upstream` [**ADDRESS**...] specifies upstream resolver(s) used for resolving services that point
   to external hosts (eg. used to resolve CNAMEs). If no **ADDRESS** is given, CoreDNS will resolve
   against itself. **ADDRESS** can be an IP, an IP:port or a path to a file structured like
   resolv.conf.
-
 * `credentials`: Used to read the credential file and feeding CoreDNS with the proper service account to use to fetch hosted zone data. Please do not use this clause if you want the plugin to automatically find your credentials.
-
 * **FILENAME** GCP JSON service account credentials filename. If 
-
 * `fallthrough`: If zone matches and no record can be generated, pass request to the next plugin.
   If **[ZONES...]** is omitted, then fallthrough happens for all zones for which the plugin
   is authoritative. If specific zones are listed (for example `in-addr.arpa` and `ip6.arpa`), then only
   queries for those zones will be subject to fallthrough.
-
 * **ZONES**: Hosted zones it should be authoritative for. If empty, the zones from the configuration block are chosen.
 
 ## Examples
@@ -78,7 +72,7 @@ Enable clouddns with explicit GCP credentials file path:
 ~~~ txt
 . {
     clouddns myproject:myhostedzonename {
-      credentials /home/.config/gcp-sa.json
+      credentials /path/to/gcp-sa.json
     }
 }
 ~~~
