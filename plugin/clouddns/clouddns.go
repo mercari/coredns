@@ -183,6 +183,7 @@ func (h *CloudDNS) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Ms
 
 // Run executes first update, spins up an update forever-loop.
 // Returns error if first update fails.
+// TODO: Make the refresh-loop timer configurable through Corefile clause.
 func (h *CloudDNS) Run(ctx context.Context) error {
 	if err := h.updateZones(ctx); err != nil {
 		return err

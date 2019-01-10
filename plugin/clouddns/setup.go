@@ -14,7 +14,6 @@ import (
 
 	"github.com/mholt/caddy"
 	gauth "golang.org/x/oauth2/google"
-
 	gdns "google.golang.org/api/dns/v1"
 )
 
